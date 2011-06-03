@@ -75,19 +75,6 @@ import org.jgroups.util.Util;
 public class CASSANDRA_PING extends FILE_PING
 {
    public static final String UTF8 = "UTF8";
-   public static final byte[] DATA;
-
-   static
-   {
-      try
-      {
-         DATA = "data".getBytes(UTF8);
-      }
-      catch (Exception e)
-      {
-         throw new IllegalArgumentException(e);
-      }
-   }
 
    @Property(description = "Cassandra host")
    private String host = "localhost";
@@ -98,6 +85,10 @@ public class CASSANDRA_PING extends FILE_PING
    @Property(description = "Cassandra keyspace")
    private String keyspace = "jgroups";
 
+   @Property(description = "Cassandra column family")
+	private String columnFamily = "clusters";
+
+	
    private TTransport tr;
    private Cassandra.Client client;
 
@@ -152,8 +143,8 @@ public class CASSANDRA_PING extends FILE_PING
          long timestamp = System.currentTimeMillis();
          String id = new String(Util.streamableToByteBuffer(data.getAddress()), UTF8); // address as unique id?
          
-         ColumnPath colPathName = new ColumnPath(clustername);
-         colPathName.setColumn("fullName".getBytes(UTF8));
+         ColumnPath colPathName = new ColumnPath(columnFamily);
+         colPathName.setColumn(clustername.getBytes(UTF8));
          
          client.insert(keyspace, id, colPathName, Util.streamableToByteBuffer(data), timestamp, ConsistencyLevel.ONE);
          if (log.isDebugEnabled()) log.debug("Ping data writen.");
@@ -170,11 +161,12 @@ public class CASSANDRA_PING extends FILE_PING
       List<PingData> results = new ArrayList<PingData>();
       try
       {
-         ColumnParent cp = new ColumnParent(clustername);
+         ColumnParent cp = new ColumnParent(columnFamily);
          SlicePredicate predicate = new SlicePredicate();
 
          List<byte[]> columnNames = new ArrayList<byte[]>();
-         columnNames.add("fullName".getBytes(UTF8));
+         columnNames.add(clustername.getBytes(UTF8));
+         
          predicate.setColumn_names(columnNames);
          KeyRange range = new KeyRange();
          range.setStart_key("");
@@ -208,7 +200,8 @@ public class CASSANDRA_PING extends FILE_PING
    {
       try
       {
-         ColumnPath path = new ColumnPath(clustername);
+         ColumnPath path = new ColumnPath(columnFamily);
+         path.setColumn(clustername.getBytes(UTF8));
          long timestamp = System.currentTimeMillis();
          client.remove(keyspace, new String(Util.streamableToByteBuffer(addr), UTF8), path, timestamp, ConsistencyLevel.ONE);
       }
