@@ -47,23 +47,23 @@ import org.junit.Test;
  */
 public class SmokeTestCase extends CassandraTest
 {
-   protected static CassandraSPI spi = new BaseCassandraSPI();
+	//TODO protected static CassandraSPI spi = new BaseCassandraSPI();
    protected static String JGROUPS = "jgroups";
    protected static String CLUSTER = "test";
 
-   @BeforeClass
-   public static void create()
+   //TODO @BeforeClass
+   /*public static void create()
    {
       spi.createKeyspace(JGROUPS);
       spi.createColumnFamily(JGROUPS, CLUSTER);
-   }
+   }*/
 
-   @AfterClass
-   public static void destroy()
+   //TODO @AfterClass
+   /*public static void destroy()
    {
       spi.dropColumnFamily(JGROUPS, CLUSTER);
       spi.dropKeyspace(JGROUPS);
-   }
+   }*/
 
    @Test
    public void testBasicOps() throws Exception

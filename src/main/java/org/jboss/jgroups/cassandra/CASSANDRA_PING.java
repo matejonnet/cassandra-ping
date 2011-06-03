@@ -39,6 +39,7 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.KeyRange;
 import org.apache.cassandra.thrift.KeySlice;
 import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -110,15 +111,18 @@ public class CASSANDRA_PING extends FILE_PING
    {
       try
       {
-         tr = new TSocket(host, port);  //new default in 0.7 is framed transport
-         TFramedTransport tf = new TFramedTransport(tr);
-         TProtocol proto = new TBinaryProtocol(tf);
+      	log.debug("Creating root dir ...");
+      	tr = new TSocket(host, port);  //new default in 0.7 is framed transport
+      	if (log.isTraceEnabled()) log.trace("Created TSocket host: " + host + " port:" + port);
+         TProtocol proto = new TBinaryProtocol(tr);
+         if (log.isTraceEnabled()) log.trace("Created TProtocol.");
          client = new Cassandra.Client(proto);
-         tf.open();
-         client.set_keyspace(keyspace);
+         if (log.isTraceEnabled()) log.trace("Created Cassandra.Client.");
+         tr.open();
       }
-      catch (Exception e)
+      catch (Throwable e)
       {
+      	log.error("Cannot create root dir.", e);
          throw new IllegalArgumentException(e);
       }
    }
@@ -142,16 +146,21 @@ public class CASSANDRA_PING extends FILE_PING
    @Override
    protected void writeToFile(PingData data, String clustername)
    {
-      try
+   	if (log.isDebugEnabled()) log.debug("Writing ping data:" + data.getAddress() + " for cluster name: " + clustername);
+   	try
       {
-         ColumnParent table = new ColumnParent(clustername);
          long timestamp = System.currentTimeMillis();
-         byte[] id = streamableToByteBuffer(data.getAddress()); // address as unique id?
-         client.insert(ByteBuffer.wrap(id), table, new Column(ByteBuffer.wrap(DATA), ByteBuffer.wrap(streamableToByteBuffer(data)), timestamp), ConsistencyLevel.ONE);
+         String id = new String(Util.streamableToByteBuffer(data.getAddress()), UTF8); // address as unique id?
+         
+         ColumnPath colPathName = new ColumnPath(clustername);
+         colPathName.setColumn("fullName".getBytes(UTF8));
+         
+         client.insert(keyspace, id, colPathName, Util.streamableToByteBuffer(data), timestamp, ConsistencyLevel.ONE);
+         if (log.isDebugEnabled()) log.debug("Ping data writen.");
       }
       catch (Exception e)
       {
-         log.debug("Cannot write ping data.", e);
+         log.warn("Cannot write ping data.", e);
       }
    }
 
@@ -163,11 +172,15 @@ public class CASSANDRA_PING extends FILE_PING
       {
          ColumnParent cp = new ColumnParent(clustername);
          SlicePredicate predicate = new SlicePredicate();
-         predicate.setColumn_names(Collections.singletonList(ByteBuffer.wrap(DATA)));
+
+         List<byte[]> columnNames = new ArrayList<byte[]>();
+         columnNames.add("fullName".getBytes(UTF8));
+         predicate.setColumn_names(columnNames);
          KeyRange range = new KeyRange();
-         range.setStart_key(new byte[0]);
-         range.setEnd_key(new byte[0]);
-         List<KeySlice> slices = client.get_range_slices(cp, predicate, range, ConsistencyLevel.ONE);
+         range.setStart_key("");
+         range.setEnd_key("");
+         List<KeySlice> slices = client.get_range_slices(keyspace, cp, predicate, range, ConsistencyLevel.ONE);
+         
          for (KeySlice ks : slices)
          {
             List<ColumnOrSuperColumn> columns = ks.getColumns();
@@ -178,12 +191,14 @@ public class CASSANDRA_PING extends FILE_PING
             byte[] bytes = column.column.getValue();
             PingData data = (PingData) Util.streamableFromByteBuffer(PingData.class, bytes);
             results.add(data);
+            log.debug("Read data.address: " + data.getAddress());
          }
+         log.debug("Read " + results.size() + " results.");
          return results;
       }
       catch (Exception e)
       {
-         log.debug(e.getMessage());
+         log.warn(e.getMessage());
       }
       return results;
    }
@@ -195,11 +210,11 @@ public class CASSANDRA_PING extends FILE_PING
       {
          ColumnPath path = new ColumnPath(clustername);
          long timestamp = System.currentTimeMillis();
-         client.remove(ByteBuffer.wrap(streamableToByteBuffer(addr)), path, timestamp, ConsistencyLevel.ONE);
+         client.remove(keyspace, new String(Util.streamableToByteBuffer(addr), UTF8), path, timestamp, ConsistencyLevel.ONE);
       }
       catch (Exception e)
       {
-         log.debug("Cannot remove ping data.", e);
+         log.warn("Cannot remove ping data.", e);
       }
    }
 }
